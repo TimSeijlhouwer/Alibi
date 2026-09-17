@@ -1,0 +1,265 @@
+/* ---- Dossier: designtokens ----
+   Nacht in de storm buiten, papieren dossier binnen.
+   --nacht  #101B26  koudblauwe stormlucht (basis)
+   --diep   #0A121B  diepste laag
+   --papier #EDE4CE  dossierpapier
+   --inkt   #2A2320  inkt op papier
+   --was    #8C2F39  lakzegel / dader
+   --kaars  #D9A441  kaarslicht (accent, spaarzaam)
+   --mist   #93A6B8  tekst op donker
+*/
+
+:root {
+  --nacht: #101b26;
+  --diep: #0a121b;
+  --papier: #ede4ce;
+  --papier-donker: #e0d4b8;
+  --inkt: #2a2320;
+  --inkt-zacht: #5c5248;
+  --was: #8c2f39;
+  --kaars: #d9a441;
+  --mist: #93a6b8;
+  --font-display: "Cormorant Garamond", Georgia, serif;
+  --font-body: "Public Sans", "Segoe UI", system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; padding: 0; }
+
+body {
+  background: linear-gradient(180deg, var(--diep) 0%, var(--nacht) 55%, #14202e 100%);
+  color: var(--mist);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.55;
+  min-height: 100vh;
+}
+
+/* ---- Storm op de achtergrond ---- */
+.storm { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+
+.rain {
+  position: absolute; inset: -20% 0 0 0;
+  background-image: repeating-linear-gradient(
+    12deg,
+    transparent 0px, transparent 6px,
+    rgba(147, 166, 184, 0.10) 6px, rgba(147, 166, 184, 0.10) 7px,
+    transparent 7px, transparent 14px
+  );
+  animation: rain-fall 0.9s linear infinite;
+}
+
+@keyframes rain-fall {
+  from { transform: translateY(-28px); }
+  to { transform: translateY(0); }
+}
+
+.lightning {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at 70% -10%, rgba(220, 232, 245, 0.85), transparent 55%);
+  opacity: 0;
+  animation: flash 11s ease-in-out infinite;
+}
+
+@keyframes flash {
+  0%, 91%, 100% { opacity: 0; }
+  92% { opacity: 0.5; }
+  93% { opacity: 0.05; }
+  94% { opacity: 0.35; }
+  95.5% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rain, .lightning { animation: none; }
+  .lightning { opacity: 0; }
+}
+
+/* ---- Lay-out ---- */
+main {
+  position: relative; z-index: 1;
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 32px 18px 80px;
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+  color: #e6ecf2;
+  line-height: 1.12;
+  margin: 0 0 10px;
+}
+
+h1 { font-size: 2.6rem; font-weight: 700; }
+h2 { font-size: 1.7rem; font-weight: 600; }
+
+.sub { color: var(--mist); margin: 0 0 26px; max-width: 52ch; }
+
+/* ---- Dossierkaart (papier) ---- */
+.papier {
+  background:
+    linear-gradient(160deg, rgba(255, 255, 255, 0.35), transparent 30%),
+    var(--papier);
+  color: var(--inkt);
+  border-radius: 3px;
+  padding: 20px 22px;
+  margin: 0 0 16px;
+  box-shadow: 0 14px 30px rgba(4, 9, 15, 0.5);
+  border-top: 1px solid rgba(255, 255, 255, 0.55);
+}
+
+.papier h2, .papier h3 { color: var(--inkt); }
+.papier .zacht { color: var(--inkt-zacht); }
+
+.dossier-kop {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 700;
+  border-bottom: 2px solid var(--inkt);
+  padding-bottom: 6px;
+  margin-bottom: 12px;
+}
+
+/* Donkere kaart (voor lobby, systeem) */
+.nachtkaart {
+  background: rgba(10, 18, 27, 0.72);
+  border: 1px solid rgba(147, 166, 184, 0.22);
+  border-radius: 6px;
+  padding: 18px 20px;
+  margin: 0 0 16px;
+  backdrop-filter: blur(2px);
+}
+
+/* Geheim paneel van de dader */
+.dader {
+  background: linear-gradient(165deg, #3a141a, #24080c);
+  border: 1px solid var(--was);
+  color: #f0d9d4;
+  border-radius: 6px;
+  padding: 18px 20px;
+  margin: 0 0 16px;
+}
+.dader h3 { color: #f6e3dc; font-size: 1.35rem; }
+.zegel {
+  display: inline-block;
+  background: var(--was);
+  color: #f6e3dc;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  margin-bottom: 10px;
+}
+
+/* Hint die je privé ontgrendelt */
+.hint {
+  background: rgba(217, 164, 65, 0.12);
+  border-left: 3px solid var(--kaars);
+  color: #eadfc4;
+  padding: 12px 16px;
+  border-radius: 0 6px 6px 0;
+  margin: 0 0 16px;
+}
+
+/* ---- Formulieren en knoppen ---- */
+label { display: block; font-weight: 600; margin: 14px 0 6px; }
+
+input[type="text"], select {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 6px;
+  border: 1px solid rgba(147, 166, 184, 0.35);
+  background: rgba(10, 18, 27, 0.6);
+  color: #e6ecf2;
+  font-size: 1rem;
+  font-family: var(--font-body);
+}
+
+.papier select, .papier input[type="text"] {
+  background: #fffdf6;
+  color: var(--inkt);
+  border: 1px solid #b9ab8d;
+}
+
+button {
+  font-family: var(--font-body);
+  font-size: 1rem;
+  font-weight: 700;
+  padding: 12px 22px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  background: var(--kaars);
+  color: #241a06;
+  margin-top: 14px;
+}
+button:disabled { opacity: 0.45; cursor: default; }
+
+button.stil {
+  background: transparent;
+  border: 1px solid rgba(147, 166, 184, 0.4);
+  color: var(--mist);
+}
+
+button.keuze {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: #fffdf6;
+  color: var(--inkt);
+  border: 1px solid #b9ab8d;
+  font-weight: 400;
+  margin-top: 10px;
+}
+button.keuze strong { font-weight: 700; }
+button.keuze.actief {
+  border: 2px solid var(--was);
+  background: #f8ecdd;
+}
+
+.rij { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+.speler {
+  display: inline-block;
+  background: rgba(147, 166, 184, 0.14);
+  border: 1px solid rgba(147, 166, 184, 0.25);
+  padding: 6px 14px;
+  border-radius: 999px;
+  color: #dbe4ec;
+}
+
+.code {
+  font-family: var(--font-display);
+  font-size: 3rem;
+  font-weight: 700;
+  letter-spacing: 0.35em;
+  color: var(--kaars);
+}
+
+.klein { font-size: 0.86rem; }
+.zacht { color: var(--mist); }
+.fout { color: #d98a80; }
+.goed { color: #9fc98f; }
+
+.alibi { border-bottom: 1px dashed #b9ab8d; padding: 10px 0; }
+.alibi:last-child { border-bottom: none; }
+.alibi .naam { font-weight: 700; }
+
+.status {
+  margin-top: 18px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(147, 166, 184, 0.2);
+  font-size: 0.9rem;
+}
+
+table.uitslag { width: 100%; border-collapse: collapse; }
+table.uitslag td, table.uitslag th {
+  text-align: left; padding: 8px 6px;
+  border-bottom: 1px dashed #b9ab8d;
+}
+table.uitslag tr:last-child td { border-bottom: none; }
+
+@media (max-width: 480px) {
+  h1 { font-size: 2rem; }
+  .code { font-size: 2.3rem; }
+}
