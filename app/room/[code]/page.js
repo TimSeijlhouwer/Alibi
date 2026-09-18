@@ -3,8 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabase";
-import { maps } from "../../../data/reinhart";
-import { computeResults, getPlayerId, sameSet, shuffle } from "../../../lib/game";
+import { maps, mapList } from "../../../data/maps";
+import {
+  DUO_THRESHOLD,
+  computeResults,
+  getPlayerId,
+  sameSet,
+  shuffle,
+} from "../../../lib/game";
 
 const PHASES = ["lobby", "r1", "r2", "r3", "final", "reveal"];
 
@@ -51,16 +57,13 @@ export default function Room() {
   const isHost = !!players[me]?.isHost;
   const inGame = !!players[me];
   const phase = state?.phase || "lobby";
-  const myChar = state?.assignments?.[me];
-  const iAmImposter = state?.imposter === me;
+  const imposters = state?.imposters || [];
+  const iAmImposter = imposters.includes(me);
   const answers = state?.answers || {};
 
-  const writeState = useCallback(
-    async (next) => {
-      await supabase.from("rooms").update({ state: next }).eq("id", roomRef.current.id);
-    },
-    []
-  );
+  const writeState = useCallback(async (next) => {
+    await supabase.from("rooms").update({ state: next }).eq("id", roomRef.current.id);
+  }, []);
 
   async function submit(phaseKey, answer) {
     await supabase.rpc("submit_answer", {
@@ -71,19 +74,33 @@ export default function Room() {
     });
   }
 
+  async function chooseMap(mapId) {
+    await writeState({ ...state, mapId });
+  }
+
   async function startGame() {
     const ids = Object.keys(players);
-    const imposter = ids[Math.floor(Math.random() * ids.length)];
-    const others = shuffle(ids.filter((id) => id !== imposter));
-    const chars = shuffle(map.characters.map((c) => c.id).filter((c) => c !== map.guiltyCharacter));
-    const assignments = { [imposter]: map.guiltyCharacter };
-    others.forEach((id, i) => {
-      assignments[id] = chars[i];
+    const duo = ids.length >= DUO_THRESHOLD;
+    const picked = shuffle(ids);
+    const dader = picked[0];
+    const accomplice = duo ? picked[1] : null;
+    const rest = ids.filter((id) => id !== dader && id !== accomplice);
+    const freeChars = shuffle(
+      map.characters
+        .map((c) => c.id)
+        .filter((c) => c !== map.guiltyCharacter && (duo ? c !== map.accompliceCharacter : true))
+    );
+    const assignments = { [dader]: map.guiltyCharacter };
+    if (accomplice) assignments[accomplice] = map.accompliceCharacter;
+    rest.forEach((id, i) => {
+      assignments[id] = freeChars[i];
     });
     await writeState({
       ...state,
       phase: "r1",
-      imposter,
+      imposters: accomplice ? [dader, accomplice] : [dader],
+      dader,
+      accomplice,
       assignments,
       answers: {},
       flags: {},
@@ -122,7 +139,6 @@ export default function Room() {
   const charOf = (playerId) => map.characters.find((c) => c.id === state.assignments?.[playerId]);
   const playerOfChar = (charId) =>
     Object.keys(state.assignments || {}).find((pid) => state.assignments[pid] === charId);
-  const npcChars = map.characters.filter((c) => !playerOfChar(c.id));
 
   const submittedCount = (key) =>
     Object.keys(players).filter((pid) => answers[key]?.[pid]).length;
@@ -140,7 +156,7 @@ export default function Room() {
   return (
     <main>
       <p className="klein zacht" style={{ marginBottom: 4 }}>
-        {map.title} · code {room.code}
+        Alibi · {map.title} · code {room.code}
       </p>
 
       {phase === "lobby" && (
@@ -151,16 +167,18 @@ export default function Room() {
           isHost={isHost}
           testMode={!!state.testMode}
           onToggleTest={toggleTestMode}
+          onChooseMap={chooseMap}
           onStart={startGame}
           code={room.code}
         />
       )}
 
-      {phase !== "lobby" && myChar && (
+      {phase !== "lobby" && charOf(me) && (
         <SecretPanel
           map={map}
           myChar={charOf(me)}
-          iAmImposter={iAmImposter}
+          isDader={state.dader === me}
+          isHandlanger={state.accomplice === me}
           open={secretOpen}
           setOpen={setSecretOpen}
           phase={phase}
@@ -179,10 +197,7 @@ export default function Room() {
         <RoundOne
           map={map}
           players={players}
-          me={me}
-          charOf={charOf}
           playerOfChar={playerOfChar}
-          npcChars={npcChars}
           myAnswer={answers.r1?.[me]}
           onSubmit={(pair) => submit("r1", { pair })}
         />
@@ -209,6 +224,7 @@ export default function Room() {
           players={players}
           me={me}
           charOf={charOf}
+          duo={imposters.length === 2}
           myAnswer={answers.final?.[me]}
           onSubmit={(a) => submit("final", a)}
         />
@@ -233,10 +249,11 @@ export default function Room() {
   );
 }
 
-function Lobby({ map, players, me, isHost, testMode, onToggleTest, onStart, code }) {
+function Lobby({ map, players, me, isHost, testMode, onToggleTest, onChooseMap, onStart, code }) {
   const count = Object.keys(players).length;
   const min = testMode ? 2 : map.minPlayers;
   const canStart = count >= min && count <= map.maxPlayers;
+  const duo = count >= DUO_THRESHOLD;
   return (
     <>
       <h1>{map.title}</h1>
@@ -245,6 +262,24 @@ function Lobby({ map, players, me, isHost, testMode, onToggleTest, onStart, code
         <p className="klein zacht" style={{ margin: 0 }}>Spelcode voor je vrienden</p>
         <div className="code">{code}</div>
       </div>
+
+      {isHost && (
+        <div className="nachtkaart">
+          <h2>Kies de map</h2>
+          {mapList.map((m) => (
+            <button
+              key={m.id}
+              className="keuze"
+              style={m.id === map.id ? { borderColor: "var(--kaars)", borderWidth: 2 } : undefined}
+              onClick={() => onChooseMap(m.id)}
+            >
+              <strong>{m.title}</strong> — {m.setting}
+              {m.id === map.id ? " · gekozen" : ""}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="nachtkaart">
         <h2>Aan tafel ({count})</h2>
         <div className="rij">
@@ -254,19 +289,18 @@ function Lobby({ map, players, me, isHost, testMode, onToggleTest, onStart, code
             </span>
           ))}
         </div>
+        <p className="klein zacht">
+          {map.minPlayers}–{map.maxPlayers} spelers. Iedereen krijgt een personage; {duo
+            ? "met deze groepsgrootte werken er twee samen: een dader én een handlanger."
+            : "één van jullie wordt in het geheim de dader. Vanaf 7 spelers komt er een handlanger bij."}
+        </p>
         {isHost ? (
-          <>
-            <p className="klein zacht">
-              {map.minPlayers}–{map.maxPlayers} spelers. Iedereen krijgt een personage; één van
-              jullie wordt in het geheim de dader.
-            </p>
-            <div className="rij">
-              <button onClick={onStart} disabled={!canStart}>Start het spel</button>
-              <button className="stil" onClick={onToggleTest}>
-                {testMode ? "Testmodus uit" : "Testmodus aan (min. 2)"}
-              </button>
-            </div>
-          </>
+          <div className="rij">
+            <button onClick={onStart} disabled={!canStart}>Start het spel</button>
+            <button className="stil" onClick={onToggleTest}>
+              {testMode ? "Testmodus uit" : "Testmodus aan (min. 2)"}
+            </button>
+          </div>
         ) : (
           <p className="klein zacht">Wachten tot de host het spel start…</p>
         )}
@@ -275,7 +309,7 @@ function Lobby({ map, players, me, isHost, testMode, onToggleTest, onStart, code
   );
 }
 
-function SecretPanel({ map, myChar, iAmImposter, open, setOpen, phase, injected, onInject }) {
+function SecretPanel({ map, myChar, isDader, isHandlanger, open, setOpen, phase, injected, onInject }) {
   return (
     <div className="dader">
       <span className="zegel">Vertrouwelijk</span>
@@ -286,9 +320,9 @@ function SecretPanel({ map, myChar, iAmImposter, open, setOpen, phase, injected,
         <button className="stil" onClick={() => setOpen(true)}>Toon mijn geheime dossier</button>
       ) : (
         <>
-          {iAmImposter ? (
+          {isDader || isHandlanger ? (
             <>
-              <p>{map.imposterBriefing}</p>
+              <p>{isDader ? map.imposterBriefing : map.accompliceBriefing}</p>
               <p className="klein">
                 De waarheid: {map.solution.locatie} · {map.solution.wapen} · motief:{" "}
                 {map.solution.motief}.
@@ -296,8 +330,8 @@ function SecretPanel({ map, myChar, iAmImposter, open, setOpen, phase, injected,
               {phase === "r3" && (
                 <>
                   <p className="klein">
-                    Je kunt éénmalig een valse aanwijzing in het dossier laten opduiken. Niemand
-                    ziet dat die van jou komt.
+                    Jullie kunnen éénmalig een valse aanwijzing in het dossier laten opduiken.
+                    Niemand ziet van wie die komt.
                   </p>
                   <button onClick={onInject} disabled={injected}>
                     {injected ? "Valse aanwijzing is ingebracht" : "Breng de valse aanwijzing in"}
@@ -318,7 +352,7 @@ function SecretPanel({ map, myChar, iAmImposter, open, setOpen, phase, injected,
   );
 }
 
-function RoundOne({ map, players, me, charOf, playerOfChar, npcChars, myAnswer, onSubmit }) {
+function RoundOne({ map, players, playerOfChar, myAnswer, onSubmit }) {
   const [picked, setPicked] = useState(myAnswer?.pair || []);
   const done = !!myAnswer;
 
@@ -439,8 +473,9 @@ function RoundThree({ map, injected, myAnswer, playerOfChar, players, onSubmit }
   );
 }
 
-function FinalAccusation({ map, players, me, charOf, myAnswer, onSubmit }) {
+function FinalAccusation({ map, players, me, charOf, duo, myAnswer, onSubmit }) {
   const [dader, setDader] = useState(myAnswer?.dader || "");
+  const [handlanger, setHandlanger] = useState(myAnswer?.handlanger || "");
   const [locatie, setLocatie] = useState(myAnswer?.locatie || "");
   const [wapen, setWapen] = useState(myAnswer?.wapen || "");
   const [motief, setMotief] = useState(myAnswer?.motief || "");
@@ -463,6 +498,19 @@ function FinalAccusation({ map, players, me, charOf, myAnswer, onSubmit }) {
           </option>
         ))}
       </select>
+      {duo && (
+        <>
+          <label>Wie was de handlanger? (er werkten er twee samen)</label>
+          <select value={handlanger} disabled={done} onChange={(e) => setHandlanger(e.target.value)}>
+            <option value="">— kies een medespeler —</option>
+            {others.map((pid) => (
+              <option key={pid} value={pid}>
+                {players[pid]?.name} ({charOf(pid)?.name || "?"})
+              </option>
+            ))}
+          </select>
+        </>
+      )}
       <label>Waar?</label>
       <select value={locatie} disabled={done} onChange={(e) => setLocatie(e.target.value)}>
         <option value="">— kies een locatie —</option>
@@ -480,13 +528,16 @@ function FinalAccusation({ map, players, me, charOf, myAnswer, onSubmit }) {
       </select>
       {!done ? (
         <button
-          onClick={() => onSubmit({ dader, locatie, wapen, motief })}
-          disabled={!dader || !locatie || !wapen || !motief}
+          onClick={() => onSubmit({ dader, handlanger: handlanger || null, locatie, wapen, motief })}
+          disabled={!dader || !locatie || !wapen || !motief || (duo && (!handlanger || handlanger === dader))}
         >
           Dien mijn beschuldiging in
         </button>
       ) : (
         <p className="status zacht">Ingediend. Wachten op de onthulling…</p>
+      )}
+      {duo && handlanger && handlanger === dader && !done && (
+        <p className="klein fout">Kies twee verschillende spelers voor dader en handlanger.</p>
       )}
     </div>
   );
@@ -494,8 +545,11 @@ function FinalAccusation({ map, players, me, charOf, myAnswer, onSubmit }) {
 
 function Reveal({ map, state, players, me, charOf }) {
   const r = computeResults(map, state);
-  const imposterName = players[r.imposterId]?.name || "?";
-  const imposterChar = charOf(r.imposterId);
+  const daderName = players[r.daderPid]?.name || "?";
+  const daderChar = charOf(r.daderPid);
+  const accName = r.accomplicePid ? players[r.accomplicePid]?.name : null;
+  const accChar = r.accomplicePid ? charOf(r.accomplicePid) : null;
+  const duo = !!r.accomplicePid;
   const ranked = Object.keys(players)
     .map((pid) => ({ pid, name: players[pid]?.name, ...r.perPlayer[pid] }))
     .sort((a, b) => b.score - a.score);
@@ -506,8 +560,14 @@ function Reveal({ map, state, players, me, charOf }) {
         <div className="dossier-kop">De onthulling</div>
         <h2>{r.caught ? "De dader is gepakt" : "De dader is ontsnapt"}</h2>
         <p>
-          Het was <strong>{imposterName}</strong>, als {imposterChar?.name} ({imposterChar?.role}) —
-          in de {map.solution.locatie}, met {map.solution.wapen}, vanwege {map.solution.motief}.
+          Het was <strong>{daderName}</strong>, als {daderChar?.name} ({daderChar?.role}) — in{" "}
+          {map.solution.locatie}, met {map.solution.wapen}, vanwege {map.solution.motief}.
+          {duo && (
+            <>
+              {" "}De handlanger: <strong>{accName}</strong>, als {accChar?.name} ({accChar?.role})
+              {r.handlangerFound ? " — ook ontmaskerd." : " — buiten schot gebleven."}
+            </>
+          )}
         </p>
         <p>
           {r.correctAccusations} van de {r.citizens.length} rechercheurs wees{r.correctAccusations === 1 ? "" : "en"} de dader
@@ -523,19 +583,11 @@ function Reveal({ map, state, players, me, charOf }) {
       <div className="papier">
         <div className="dossier-kop">Zo werden jullie gestuurd</div>
         <ul>
-          <li>
-            De barst in de alibi&#39;s: <strong>Isabel</strong> verzon dat Ruben in de keuken was —
-            Ruben is nooit weggeweest. En wie &#39;uit de keuken kwam&#39;, kwam uit de kelder.
-          </li>
-          <li>
-            Het briefje en het bittere glas waren wel degelijk belastend: de afspraak om 21:00 in de
-            kelder, en gif in de wijn.
-          </li>
-          <li>
-            {state.flags?.injected
-              ? "De \u201Eaanvullende verklaring\u201D over de dienstlift was vals — ingebracht door de dader om Daniël te framen."
-              : "De dader heeft de valse aanwijzing over de dienstlift níet ingezet."}
-          </li>
+          {map.reveal.punten.map((p) => (
+            <li key={p}>{p}</li>
+          ))}
+          {duo && <li>{map.reveal.handlanger}</li>}
+          <li>{state.flags?.injected ? map.reveal.fakeUsed : map.reveal.fakeUnused}</li>
         </ul>
       </div>
 
@@ -543,28 +595,38 @@ function Reveal({ map, state, players, me, charOf }) {
         <div className="dossier-kop">Scorebord</div>
         <table className="uitslag">
           <thead>
-            <tr><th>Speler</th><th>R1</th><th>R2</th><th>R3</th><th>Dader</th><th>Punten</th></tr>
+            <tr>
+              <th>Speler</th><th>R1</th><th>R2</th><th>R3</th><th>Dader</th>
+              {duo && <th>Handl.</th>}
+              <th>Punten</th>
+            </tr>
           </thead>
           <tbody>
-            {ranked.map((p) => (
-              <tr key={p.pid}>
-                <td>
-                  {p.name}
-                  {p.pid === r.imposterId ? " — de dader" : ""}
-                  {p.pid === me ? " (jij)" : ""}
-                </td>
-                <td>{mark(p.r1)}</td>
-                <td>{mark(p.r2)}</td>
-                <td>{mark(p.r3)}</td>
-                <td>{p.pid === r.imposterId ? "—" : mark(p.final?.dader)}</td>
-                <td><strong>{p.score}</strong></td>
-              </tr>
-            ))}
+            {ranked.map((p) => {
+              const isImp = r.imposters.includes(p.pid);
+              return (
+                <tr key={p.pid}>
+                  <td>
+                    {p.name}
+                    {p.pid === r.daderPid ? " — de dader" : ""}
+                    {p.pid === r.accomplicePid ? " — de handlanger" : ""}
+                    {p.pid === me ? " (jij)" : ""}
+                  </td>
+                  <td>{isImp ? "—" : mark(p.r1)}</td>
+                  <td>{isImp ? "—" : mark(p.r2)}</td>
+                  <td>{isImp ? "—" : mark(p.r3)}</td>
+                  <td>{isImp ? "—" : mark(p.final?.dader)}</td>
+                  {duo && <td>{isImp ? "—" : mark(p.final?.handlanger)}</td>}
+                  <td><strong>{p.score}</strong></td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
         <p className="klein zacht">
-          Details (locatie, wapen, motief) telden mee voor je punten. De dader scoorde op elke
-          rechercheur die de mist in ging{r.caught ? "." : " — en op de ontsnapping."}
+          Details (locatie, wapen, motief{duo ? ", handlanger" : ""}) telden mee voor je punten. De
+          schuldigen scoorden op elke rechercheur die de mist in ging
+          {r.caught ? "." : " — en op de ontsnapping."}
         </p>
       </div>
     </>

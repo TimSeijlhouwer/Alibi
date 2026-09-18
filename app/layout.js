@@ -1,7 +1,7 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "Dossier — wie van jullie heeft het gedaan?",
+  title: "Alibi — wie van jullie heeft het gedaan?",
   description:
     "Een sociaal deductiespel waarin de dader méér weet dan jij. Reconstrueer de moord — en vertrouw niemand.",
 };

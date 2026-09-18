@@ -79,9 +79,9 @@ export default function Home() {
         setError("Dit spel is al begonnen.");
         return;
       }
-      if (Object.keys(players).length >= 5) {
+      if (Object.keys(players).length >= 8) {
         setBusy(false);
-        setError("Dit spel zit vol (max. 5 spelers).");
+        setError("Dit spel zit vol (max. 8 spelers).");
         return;
       }
       await supabase.rpc("join_room", {
@@ -96,7 +96,7 @@ export default function Home() {
 
   return (
     <main>
-      <h1>Dossier</h1>
+      <h1>Alibi</h1>
       <p className="sub">
         Een moord. Een storm. En één speler die precies weet wat er is gebeurd —
         omdat die het zelf heeft gedaan. Reconstrueer samen de misdaad, maar
@@ -140,8 +140,8 @@ export default function Home() {
       </div>
 
       <p className="klein zacht">
-        Eerste testversie · map: Storm op Huize Reinhart · 4–5 spelers (of 2+ in
-        testmodus)
+        Testversie · 3 maps: landhuis, verlaten fabriek, boshut · 4–8 spelers (of 2+ in
+        testmodus) · vanaf 7 spelers werken twee schuldigen samen
       </p>
     </main>
   );
