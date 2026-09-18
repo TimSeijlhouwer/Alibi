@@ -25,8 +25,19 @@ export default function Room() {
 
   const me = useMemo(() => getPlayerId(), []);
 
+  const refresh = useCallback(async () => {
+    if (!roomRef.current) return;
+    const { data } = await supabase
+      .from("rooms")
+      .select("id, code, state")
+      .eq("id", roomRef.current.id)
+      .maybeSingle();
+    if (data) setRoom(data);
+  }, []);
+
   useEffect(() => {
     let channel;
+    let poll;
     async function load() {
       const { data } = await supabase
         .from("rooms")
@@ -44,12 +55,15 @@ export default function Room() {
           (payload) => setRoom((r) => ({ ...r, state: payload.new.state }))
         )
         .subscribe();
+      // Terugval voor als realtime niet aanstaat of hapert: elke 4 s verversen.
+      poll = setInterval(refresh, 4000);
     }
     load();
     return () => {
       if (channel) supabase.removeChannel(channel);
+      if (poll) clearInterval(poll);
     };
-  }, [code]);
+  }, [code, refresh]);
 
   const state = room?.state;
   const map = maps[state?.mapId] || maps.reinhart;
@@ -63,15 +77,21 @@ export default function Room() {
 
   const writeState = useCallback(async (next) => {
     await supabase.from("rooms").update({ state: next }).eq("id", roomRef.current.id);
-  }, []);
+    await refresh();
+  }, [refresh]);
 
   async function submit(phaseKey, answer) {
-    await supabase.rpc("submit_answer", {
+    const { error } = await supabase.rpc("submit_answer", {
       p_room: room.id,
       p_phase: phaseKey,
       p_player_id: me,
       p_answer: answer,
     });
+    if (error) {
+      window.alert("Inleveren mislukt: " + error.message);
+      return;
+    }
+    await refresh();
   }
 
   async function chooseMap(mapId) {
@@ -183,9 +203,10 @@ export default function Room() {
           setOpen={setSecretOpen}
           phase={phase}
           injected={!!state.flags?.injected}
-          onInject={() =>
-            supabase.rpc("set_flag", { p_room: room.id, p_key: "injected", p_value: true })
-          }
+          onInject={async () => {
+            await supabase.rpc("set_flag", { p_room: room.id, p_key: "injected", p_value: true });
+            await refresh();
+          }}
         />
       )}
 
@@ -231,7 +252,15 @@ export default function Room() {
       )}
 
       {phase === "reveal" && (
-        <Reveal map={map} state={state} players={players} me={me} charOf={charOf} />
+        <>
+          <Reveal map={map} state={state} players={players} me={me} charOf={charOf} />
+          <div className="nachtkaart">
+            <p className="klein zacht" style={{ margin: 0 }}>
+              Zin in nog een zaak? Start op de homepagina een nieuw spel.
+            </p>
+            <button onClick={() => router.push("/")}>Terug naar home</button>
+          </div>
+        </>
       )}
 
       {isHost && phase !== "lobby" && phase !== "reveal" && (

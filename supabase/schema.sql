@@ -32,7 +32,9 @@ create or replace function public.submit_answer(p_room uuid, p_phase text, p_pla
 returns void language sql as $$
   update public.rooms
   set state = jsonb_set(
-        jsonb_set(state, array['answers'], coalesce(state->'answers', '{}'::jsonb), true),
+        jsonb_set(
+          jsonb_set(state, array['answers'], coalesce(state->'answers', '{}'::jsonb), true),
+          array['answers', p_phase], coalesce(state->'answers'->p_phase, '{}'::jsonb), true),
         array['answers', p_phase, p_player_id], p_answer, true)
   where id = p_room;
 $$;
