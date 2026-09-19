@@ -263,3 +263,79 @@ table.uitslag tr:last-child td { border-bottom: none; }
   h1 { font-size: 2rem; }
   .code { font-size: 2.3rem; }
 }
+
+/* ---- Plattegrond (onderzoeksronde) ---- */
+.plattegrond {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.kamer {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  margin: 0;
+  padding: 16px 14px;
+  min-height: 84px;
+  background: #fffdf6;
+  border: 1px solid #b9ab8d;
+  border-radius: 3px;
+  color: var(--inkt);
+  text-align: left;
+  font-weight: 400;
+}
+
+.kamer.actief {
+  border: 2px solid var(--was);
+  background: #f8ecdd;
+}
+
+.kamer-naam {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.kamer-actie {
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--inkt-zacht);
+}
+
+.kamer.actief .kamer-actie { color: var(--was); font-weight: 700; }
+
+/* Vondsten en verstoorde kamers */
+.vondst {
+  border-left: 3px solid var(--kaars);
+  background: rgba(217, 164, 65, 0.1);
+  padding: 10px 14px;
+  margin: 0 0 10px;
+  border-radius: 0 4px 4px 0;
+}
+.vondst .naam { font-weight: 700; }
+
+.verstoord {
+  border: 1px dashed var(--was);
+  color: var(--was);
+  background: rgba(140, 47, 57, 0.07);
+  padding: 10px 14px;
+  margin: 0 0 10px;
+  border-radius: 4px;
+  font-size: 0.92rem;
+}
+
+/* De waarheid die alleen de schuldigen zien */
+.waarheid {
+  color: var(--was);
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 420px) {
+  .plattegrond { grid-template-columns: 1fr; }
+}
